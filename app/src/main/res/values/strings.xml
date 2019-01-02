@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Lyrics</string>
+    <string name="not_found_lyric">
+        "Not Found Any Lyrics."
+    </string>
+    <string name="action_settings">Settings</string>
+</resources>

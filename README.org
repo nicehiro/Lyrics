@@ -1,0 +1,2 @@
+* Lyrics For Spotify Android
+Search song's lyrics of Spotify current playing songs.
