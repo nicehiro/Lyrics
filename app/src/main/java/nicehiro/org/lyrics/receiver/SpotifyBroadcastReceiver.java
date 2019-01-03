@@ -5,14 +5,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
-import io.reactivex.Observer;
-import io.reactivex.android.schedulers.AndroidSchedulers;
-import io.reactivex.disposables.Disposable;
-import io.reactivex.schedulers.Schedulers;
-import nicehiro.org.lyrics.model.Song;
-import nicehiro.org.lyrics.request.NetRequest;
-import nicehiro.org.lyrics.utils.RetrofitUtil;
-
 public class SpotifyBroadcastReceiver extends BroadcastReceiver {
 
   private static final String TAG = "SPOTIFY-BROADCAST";
@@ -73,7 +65,7 @@ public class SpotifyBroadcastReceiver extends BroadcastReceiver {
       boolean playing = intent.getBooleanExtra("playing", false);
       int positionInMs = intent.getIntExtra("playbackPosition", 0);
       // Do something with extracted information
-      Log.d(TAG, "receive a state changed message from spotify");
+      Log.d(TAG, "Playback Position: " + positionInMs);
     } else if (action.equals(BroadcastTypes.QUEUE_CHANGED)) {
       // Sent only as a notification, your app may want to respond accordingly.
       Log.d(TAG, "receive a queue changed message from spotify");
