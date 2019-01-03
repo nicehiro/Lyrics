@@ -96,6 +96,7 @@ public class ScrollingActivity extends AppCompatActivity {
             String lyricsOrignal = value.getLrc().getLyric();
             String lyricsTranslate = value.getTlyric().getLyric();
             String lyrics = RegexParser.concatTranslateLyrics(lyricsOrignal, lyricsTranslate);
+            lyrics = RegexParser.beautifyLyric(lyrics);
             tvLyric.setText(lyrics);
             Log.d(TAG, lyrics);
           }

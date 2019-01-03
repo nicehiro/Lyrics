@@ -11,8 +11,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import nicehiro.org.lyrics.model.LyricTime;
 
 public class RegexParser {
 
@@ -22,63 +25,50 @@ public class RegexParser {
 
   private static Pattern pattern = Pattern.compile(regex);
 
-  public static List<Map> parseLyricsToList(String lyrics) {
-    List<Map> lyricsList = new ArrayList<>();
-    try (BufferedReader bufferedReader = new BufferedReader(
-      new InputStreamReader(
-        new ByteArrayInputStream(lyrics.getBytes(Charset.forName("utf8"))), Charset.forName("utf8")))) {
-      String line;
-
-      while ((line = bufferedReader.readLine()) != null) {
-        if (!line.trim().equals("")) {
-          Matcher matcher = pattern.matcher(line);
-          Map<Long, String> lyricsMap = new HashMap<>();
-          while (matcher.find()) {
-            String minute = matcher.group(1);
-            String second = matcher.group(2);
-            String millSecond = matcher.group(3);
-            Long time = getLongTime(minute, second, millSecond);
-            String text = line.substring(matcher.end());
-            lyricsMap.put(time, text);
-            lyricsList.add(lyricsMap);
-          }
-        }
-      }
-    } catch (IOException e) {
-      Log.d(TAG, "No Lyrics found!");
-    }
-
-    return lyricsList;
-  }
-
   /**
    * unsorted lyrics but search faster.
+   *
    * @param lyrics
    * @return
    * @throws IOException
    */
-  private static Map<Long, String> parseLyricsToMap(String lyrics) throws IOException {
-    BufferedReader bufferedReader = new BufferedReader(
-      new InputStreamReader(
-        new ByteArrayInputStream(lyrics.getBytes(Charset.forName("utf8"))), Charset.forName("utf8")));
-    String line;
+  private static Map<Long, String> parseLyricsToMap(String lyrics) {
+    Map<Long, String> lyricsMap = new TreeMap<>();
+    try {
+      BufferedReader bufferedReader = new BufferedReader(
+        new InputStreamReader(
+          new ByteArrayInputStream(lyrics.getBytes(Charset.forName("utf8"))), Charset.forName("utf8")));
+      String line;
 
-    Map<Long, String> lyricsMap = new HashMap();
 
-    while ((line = bufferedReader.readLine()) != null) {
-      if (!line.trim().equals("")) {
-        Matcher matcher = pattern.matcher(line);
-        while (matcher.find()) {
-          String minute = matcher.group(1);
-          String second = matcher.group(2);
-          String millSecond = matcher.group(3);
-          Long time = getLongTime(minute, second, millSecond);
-          String text = line.substring(matcher.end());
-          lyricsMap.put(time, text);
+      while ((line = bufferedReader.readLine()) != null) {
+        if (!line.trim().equals("")) {
+          Matcher matcher = pattern.matcher(line);
+          List<LyricTime> lyricTimeList = new ArrayList<>();
+          int i = 0;
+          int end = 0;
+          while (matcher.find()) {
+            LyricTime lyricTime = new LyricTime();
+            lyricTime.setMinute(matcher.group(1));
+            lyricTime.setSecond(matcher.group(2));
+            lyricTime.setMillSecond(matcher.group(3));
+            lyricTimeList.add(lyricTime);
+            end = matcher.end();
+            i++;
+          }
+          String text = line.substring(end);
+          if (text.equals("")) {
+            text = "\n";
+          }
+          for (LyricTime lyricTime : lyricTimeList) {
+            Long time = getLongTime(lyricTime.getMinute(), lyricTime.getSecond(), lyricTime.getMillSecond());
+            lyricsMap.put(time, text);
+          }
         }
       }
+    } catch (IOException e) {
+      Log.d(TAG, "Lyric parse wrong!");
     }
-
     return lyricsMap;
   }
 
@@ -95,14 +85,12 @@ public class RegexParser {
     return time;
   }
 
-  public static String concatLyric(List<Map> lyricsList) {
-    String lyrics = "";
-    for (Map<Long, String> lyricMap : lyricsList) {
-      for (Map.Entry<Long, String> entry : lyricMap.entrySet()) {
-        lyrics += entry.getValue() + "\n";
-      }
+  public static String concatLyric(Map<Long, String> lyricsMap) {
+    StringBuilder lyrics = new StringBuilder();
+    for (Map.Entry<Long, String> entry : lyricsMap.entrySet()) {
+      lyrics.append(entry.getValue()).append("\n");
     }
-    return lyrics;
+    return lyrics.toString();
   }
 
   public static String concatTranslateLyrics(String lyricsOriginal, String lyricsTranslate) {
@@ -110,29 +98,27 @@ public class RegexParser {
     if (lyricsTranslate == null || lyricsTranslate.equals("")) {
       return parseLyricToString(lyricsOriginal);
     }
-    try {
-      List<Map> lyricsOriList = parseLyricsToList(lyricsOriginal);
-         Map<Long, String> lyricTransMap = lyricTransMap = parseLyricsToMap(lyricsTranslate);
-      lyrics = concatTranslateLyrics(lyricsOriList, lyricTransMap);
-    } catch (IOException e) {
-      e.printStackTrace();
+    Map<Long, String> lyricsOriMap =parseLyricsToMap(lyricsOriginal);
+    Map<Long, String> lyricTransMap = lyricTransMap = parseLyricsToMap(lyricsTranslate);
+    lyrics = concatTranslateLyrics(lyricsOriMap, lyricTransMap);
+    return lyrics;
+  }
+
+  public static String concatTranslateLyrics(Map<Long, String> lyricsOriMap, Map<Long, String> lyricsTransMap) {
+    String lyrics = "";
+    for (Map.Entry<Long, String> entry : lyricsOriMap.entrySet()) {
+      lyrics += entry.getValue() + "\n" + (lyricsTransMap.containsKey(entry.getKey()) ? lyricsTransMap.get(entry.getKey()) : "") + "\n";
     }
     return lyrics;
   }
 
-  public static String concatTranslateLyrics(List<Map> lyricsOriList, Map<Long, String> lyricsTransMap) {
-    String lyrics = "";
-    for (Map<Long, String> lyricMap : lyricsOriList) {
-      for (Map.Entry<Long, String> entry : lyricMap.entrySet()) {
-        lyrics += entry.getValue() + "\n" + lyricsTransMap.get(entry.getKey()) + "\n";
-      }
-    }
-    return lyrics;
+  public static String beautifyLyric(String lyrics) {
+    return lyrics.replaceAll("\n{2,}", "\n\n");
   }
 
   public static String parseLyricToString(String lyricsOrignal) {
     String lyrics = "";
-    lyrics = concatLyric(parseLyricsToList(lyricsOrignal));
+    lyrics = concatLyric(parseLyricsToMap(lyricsOrignal));
 
     return lyrics;
   }
