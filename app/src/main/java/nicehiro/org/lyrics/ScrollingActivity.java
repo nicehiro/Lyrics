@@ -21,7 +21,6 @@ import io.reactivex.schedulers.Schedulers;
 import nicehiro.org.lyrics.model.Lyric;
 import nicehiro.org.lyrics.model.Song;
 import nicehiro.org.lyrics.request.NetRequest;
-import nicehiro.org.lyrics.utils.NotificationUtils;
 import nicehiro.org.lyrics.utils.RegexParser;
 import nicehiro.org.lyrics.utils.RetrofitUtil;
 
@@ -44,11 +43,6 @@ public class ScrollingActivity extends AppCompatActivity {
 
     songId = "";
     tvLyric = this.findViewById(R.id.lyric_content);
-
-    if (!NotificationUtils.isNotificationListenerEnable(this)) {
-      NotificationUtils.toggleNotificationListenerService(this);
-      NotificationUtils.gotoNotificationSetting(this);
-    }
 
     FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
     fab.setOnClickListener(new View.OnClickListener() {
@@ -74,12 +68,6 @@ public class ScrollingActivity extends AppCompatActivity {
     searchLyric(String.format("%s %s %s", spotifyBroadcastReceiver.getAlbumName(),
       spotifyBroadcastReceiver.getTrackName(),
       spotifyBroadcastReceiver.getArtistName()));
-  }
-
-  @Override
-  protected void onResume() {
-    super.onResume();
-    getLyrics();
   }
 
   private void subcribeSpotifyBroadcast(Context context) {
