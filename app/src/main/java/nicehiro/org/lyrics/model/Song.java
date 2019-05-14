@@ -200,7 +200,7 @@ public class Song {
          * alia : ["纪录片《我们是 X》原声"]
          */
 
-        private int id;
+        private String id;
         private String name;
         private ArtistBean artist;
         private long publishTime;
@@ -210,11 +210,11 @@ public class Song {
         private long picId;
         private List<String> alia;
 
-        public int getId() {
+        public String getId() {
           return id;
         }
 
-        public void setId(int id) {
+        public void setId(String id) {
           this.id = id;
         }
 

@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AppCompatActivity;
@@ -12,18 +14,25 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import io.reactivex.ObservableSource;
 import io.reactivex.Observer;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Consumer;
+import io.reactivex.functions.Function;
 import io.reactivex.schedulers.Schedulers;
+import nicehiro.org.lyrics.model.Album;
 import nicehiro.org.lyrics.model.Lyric;
 import nicehiro.org.lyrics.model.Song;
 import nicehiro.org.lyrics.request.NetRequest;
 import nicehiro.org.lyrics.utils.NotificationUtils;
 import nicehiro.org.lyrics.utils.RegexParser;
 import nicehiro.org.lyrics.utils.RetrofitUtil;
+import okhttp3.ResponseBody;
 
 public class ScrollingActivity extends AppCompatActivity {
 
@@ -31,7 +40,15 @@ public class ScrollingActivity extends AppCompatActivity {
 
   private String songId;
 
+  private String albumId;
+
+  private String imageUrl;
+
+  private ImageView album;
+
   private SpotifyBroadcastReceiver spotifyBroadcastReceiver;
+
+  NetRequest netRequest = RetrofitUtil.getInstance().create(NetRequest.class);
 
   TextView tvLyric;
 
@@ -39,7 +56,8 @@ public class ScrollingActivity extends AppCompatActivity {
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_scrolling);
-    Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+    Toolbar toolbar = findViewById(R.id.toolbar);
+    album = findViewById(R.id.album);
     setSupportActionBar(toolbar);
 
     songId = "";
@@ -50,15 +68,15 @@ public class ScrollingActivity extends AppCompatActivity {
       NotificationUtils.gotoNotificationSetting(this);
     }
 
-    FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+    FloatingActionButton fab = findViewById(R.id.fab);
     fab.setOnClickListener(new View.OnClickListener() {
       @Override
       public void onClick(View view) {
 //        Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
 //          .setAction("Action", null).show();
         if (spotifyBroadcastReceiver.getAlbumName() == null ||
-          spotifyBroadcastReceiver.getArtistName() == null ||
-          spotifyBroadcastReceiver.getTrackName() == null) {
+            spotifyBroadcastReceiver.getArtistName() == null ||
+            spotifyBroadcastReceiver.getTrackName() == null) {
           Log.d(TAG, "Song's Information Not Complete!");
         } else {
           // search song
@@ -71,15 +89,18 @@ public class ScrollingActivity extends AppCompatActivity {
   }
 
   private void getLyrics() {
-    searchLyric(String.format("%s %s %s", spotifyBroadcastReceiver.getAlbumName(),
-      spotifyBroadcastReceiver.getTrackName(),
-      spotifyBroadcastReceiver.getArtistName()));
+//    searchLyric(String.format("%s %s %s", spotifyBroadcastReceiver.getAlbumName(),
+//        spotifyBroadcastReceiver.getTrackName(),
+//        spotifyBroadcastReceiver.getArtistName()));
+    getLyricsOneStep(String.format("%s %s %s", spotifyBroadcastReceiver.getAlbumName(),
+        spotifyBroadcastReceiver.getTrackName(),
+        spotifyBroadcastReceiver.getArtistName()));
   }
 
   @Override
   protected void onResume() {
     super.onResume();
-    getLyrics();
+//    getLyrics();
   }
 
   private void subcribeSpotifyBroadcast(Context context) {
@@ -92,82 +113,99 @@ public class ScrollingActivity extends AppCompatActivity {
     context.registerReceiver(spotifyBroadcastReceiver, intentFilter);
   }
 
-  private void getLyrics(String songId) {
-    NetRequest netRequest = RetrofitUtil.getInstance().create(NetRequest.class);
-    netRequest.getLyrics(songId)
-      .subscribeOn(Schedulers.io())
-      .observeOn(AndroidSchedulers.mainThread())
-      .subscribe(new Observer<Lyric>() {
-        @Override
-        public void onSubscribe(Disposable d) {
-          Log.d(TAG, "Subscribe a request");
-        }
-
-        @Override
-        public void onNext(Lyric value) {
-          if (value.getLrc() != null) {
-            String lyricsOrignal = value.getLrc().getLyric();
-            String lyricsTranslate = value.getTlyric().getLyric();
-            String lyrics = RegexParser.concatTranslateLyrics(lyricsOrignal, lyricsTranslate);
-            lyrics = RegexParser.beautifyLyric(lyrics);
-            tvLyric.setText(lyrics);
-            Log.d(TAG, lyrics);
-          }
-        }
-
-        @Override
-        public void onError(Throwable e) {
-          Log.d(TAG, "We got some troubles");
-        }
-
-        @Override
-        public void onComplete() {
-          Log.d(TAG, "Complete get a lyric!");
-        }
-      });
-  }
-
-  public void searchLyric(String keywords) {
-    NetRequest netRequest = RetrofitUtil.getInstance().create(NetRequest.class);
+  /**
+   * 查找当前播放的歌曲并获取歌词和专辑图片
+   * @param keywords
+   */
+  private void getLyricsOneStep(String keywords) {
     netRequest.searchSong(keywords)
-      .subscribeOn(Schedulers.io())
-      .observeOn(AndroidSchedulers.mainThread())
-      .subscribe(new Observer<Song>() {
-        @Override
-        public void onSubscribe(Disposable d) {
-          Log.d(TAG, "Subscribe a request");
-        }
-
-        @Override
-        public void onNext(Song value) {
-          // update lyric content
-          if (value.getResult().getSongCount() <= 0) {
-            // Not found any results.
-            songId = "";
-            tvLyric.setText(R.string.not_found_lyric);
-          } else {
-            // Find the first result.
-            songId = value.getResult().getSongs().get(0).getId();
-            tvLyric.setText(R.string.not_found_lyric);
-            if (songId.equals("")) {
-              Log.d(TAG, "Don't find any result!");
+        .subscribeOn(Schedulers.io())
+        .observeOn(AndroidSchedulers.mainThread())
+        .doOnNext(new Consumer<Song>() {
+          @Override
+          public void accept(Song song) throws Exception {
+            // update lyric content
+            if (song.getResult().getSongCount() <= 0) {
+              // Not found any results.
+              songId = "";
+              albumId = "";
+              tvLyric.setText(R.string.not_found_lyric);
             } else {
-              // search lyric
-              getLyrics(songId);
+              // Find the first result.
+              songId = song.getResult().getSongs().get(0).getId();
+              albumId = song.getResult().getSongs().get(0).getAlbum().getId();
+              tvLyric.setText("");
+              if (songId.equals("")) {
+                Log.d(TAG, "Don't find any result!");
+              }
             }
           }
-        }
+        })
+        .observeOn(Schedulers.io())
+        .flatMap(new Function<Song, ObservableSource<Lyric>>() {
+          @Override
+          public ObservableSource<Lyric> apply(Song song) throws Exception {
+            return netRequest.getLyrics(songId);
+          }
+        })
+        .observeOn(AndroidSchedulers.mainThread())
+        .doOnNext(new Consumer<Lyric>() {
+          @Override
+          public void accept(Lyric lyric) throws Exception {
+            tvLyric.setText(R.string.not_found_lyric);
+            if (lyric.getLrc() != null) {
+              String lyricsOrignal = lyric.getLrc().getLyric();
+              String lyricsTranslate = lyric.getTlyric().getLyric();
+              String lyrics = RegexParser.concatTranslateLyrics(lyricsOrignal, lyricsTranslate);
+              lyrics = RegexParser.beautifyLyric(lyrics);
+              tvLyric.setText(lyrics);
+              Log.d(TAG, lyrics);
+            }
+          }
+        })
+        .observeOn(Schedulers.io())
+        .flatMap(new Function<Lyric, ObservableSource<Album>>() {
+          @Override
+          public ObservableSource<Album> apply(Lyric lyric) throws Exception {
+            return netRequest.getAlbum(albumId);
+          }
+        })
+        .observeOn(AndroidSchedulers.mainThread())
+        .doOnNext(new Consumer<Album>() {
+          @Override
+          public void accept(Album album) throws Exception {
+            // 获取图片url
+            imageUrl = album.getAlbum().getPicUrl();
+          }
+        })
+        .observeOn(Schedulers.io())
+        .flatMap(new Function<Album, ObservableSource<ResponseBody>>() {
+          @Override
+          public ObservableSource<ResponseBody> apply(Album album) throws Exception {
+            return netRequest.downloadImage(imageUrl);
+          }
+        })
+        .observeOn(AndroidSchedulers.mainThread())
+        .subscribe(new Observer<ResponseBody>() {
+          @Override
+          public void onSubscribe(Disposable d) {
+          }
 
-        @Override
-        public void onError(Throwable e) {
-          Log.d(TAG, "We got some troubles");
-        }
+          @Override
+          public void onNext(ResponseBody value) {
+            // 绘制图片
+            Bitmap bitmap = BitmapFactory.decodeStream(value.byteStream());
+            album.setImageBitmap(bitmap);
+          }
 
-        @Override
-        public void onComplete() {
-          Log.d(TAG, "Complete search a song");
-        }
-      });
+          @Override
+          public void onError(Throwable e) {
+          }
+
+          @Override
+          public void onComplete() {
+          }
+        });
   }
 
   @Override
@@ -254,7 +292,7 @@ public class ScrollingActivity extends AppCompatActivity {
         // Do something with extracted information...
         Log.d(TAG, trackId + "  " + artistName + "  " + albumName + " " + trackName + "  " + trackLengthInSec);
         // Search song's lyric
-        searchLyric(String.format("%s %s %s", artistName, albumName, trackName));
+        getLyricsOneStep(String.format("%s %s %s", artistName, albumName, trackName));
       } else if (action.equals(BroadcastTypes.PLAYBACK_STATE_CHANGED)) {
         boolean playing = intent.getBooleanExtra("playing", false);
         int positionInMs = intent.getIntExtra("playbackPosition", 0);
